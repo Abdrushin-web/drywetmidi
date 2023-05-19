@@ -7,7 +7,8 @@ namespace Melanchall.DryWetMidi.Composing
     /// <summary>
     /// Represents an object that describes a note.
     /// </summary>
-    public sealed class NoteDescriptor
+    public sealed class NoteDescriptor :
+        BaseDescriptor
     {
         #region Constructor
 
@@ -29,14 +30,11 @@ namespace Melanchall.DryWetMidi.Composing
         /// </item>
         /// </list>
         /// </exception>
-        public NoteDescriptor(MusicTheory.Note note, SevenBitNumber velocity, ITimeSpan length)
+        public NoteDescriptor(MusicTheory.Note note, SevenBitNumber velocity, ITimeSpan length) :
+            base(velocity, length)
         {
             ThrowIfArgument.IsNull(nameof(note), note);
-            ThrowIfArgument.IsNull(nameof(length), length);
-
             Note = note;
-            Velocity = velocity;
-            Length = length;
         }
 
         #endregion
@@ -47,16 +45,6 @@ namespace Melanchall.DryWetMidi.Composing
         /// Gets the note.
         /// </summary>
         public MusicTheory.Note Note { get; }
-
-        /// <summary>
-        /// Gets the velocity of the note.
-        /// </summary>
-        public SevenBitNumber Velocity { get; }
-
-        /// <summary>
-        /// Gets the length of the note.
-        /// </summary>
-        public ITimeSpan Length { get; }
 
         #endregion
 
@@ -72,13 +60,8 @@ namespace Melanchall.DryWetMidi.Composing
         {
             if (ReferenceEquals(noteDescriptor1, noteDescriptor2))
                 return true;
-
-            if (ReferenceEquals(null, noteDescriptor1) || ReferenceEquals(null, noteDescriptor2))
-                return false;
-
-            return noteDescriptor1.Note == noteDescriptor2.Note &&
-                   noteDescriptor1.Velocity == noteDescriptor2.Velocity &&
-                   noteDescriptor1.Length.Equals(noteDescriptor2.Length);
+            return (BaseDescriptor)noteDescriptor1 == noteDescriptor2 &&
+                   noteDescriptor1.Note == noteDescriptor2.Note;
         }
 
         /// <summary>
@@ -100,10 +83,7 @@ namespace Melanchall.DryWetMidi.Composing
         /// Returns a string that represents the current object.
         /// </summary>
         /// <returns>A string that represents the current object.</returns>
-        public override string ToString()
-        {
-            return $"{Note} [{Velocity}]: {Length}";
-        }
+        public override string ToString() => $"{Note} {base.ToString()}";
 
         /// <summary>
         /// Determines whether the specified object is equal to the current object.
@@ -125,8 +105,7 @@ namespace Melanchall.DryWetMidi.Composing
             {
                 var result = 17;
                 result = result * 23 + Note.GetHashCode();
-                result = result * 23 + Velocity.GetHashCode();
-                result = result * 23 + Length.GetHashCode();
+                result = result * 23 + base.GetHashCode();
                 return result;
             }
         }

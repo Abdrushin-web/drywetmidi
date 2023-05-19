@@ -1,5 +1,5 @@
-﻿using System;
-using Melanchall.DryWetMidi.Common;
+﻿using Melanchall.DryWetMidi.Common;
+using System;
 
 namespace Melanchall.DryWetMidi.Core
 {
@@ -15,16 +15,19 @@ namespace Melanchall.DryWetMidi.Core
         #region Constants
 
         /// <summary>
-        /// Represents the smallest possible pitch value.
+        /// Represents the smallest possible negative pitch value.
         /// </summary>
-        public const ushort MinPitchValue = 0;
+        public const ushort MinPitchValue = PitchBend.MinValue;
 
         /// <summary>
-        /// Represents the largest possible pitch value.
+        /// Represents the largest possible positive pitch value.
         /// </summary>
-        public const ushort MaxPitchValue = (1 << 14) - 1;
+        public const ushort MaxPitchValue = PitchBend.MaxValue;
 
-        public const ushort DefaultPitchValue = 1 << 13;
+        /// <summary>
+        /// Represents zero pitch value
+        /// </summary>
+        public const ushort DefaultPitchValue = PitchBend.ZeroValue;
 
         #endregion
 
@@ -62,21 +65,20 @@ namespace Melanchall.DryWetMidi.Core
         /// [<see cref="MinPitchValue"/>; <see cref="MaxPitchValue"/>] range.</exception>
         public ushort PitchValue
         {
-            get
-            {
-                return DataTypesUtilities.CombineAsSevenBitNumbers(_dataByte2, _dataByte1);
-            }
+            get { return Pitch; }
+            set { Pitch = new PitchBend(value); }
+        }
+
+        /// <summary>
+        /// <see cref="PitchBend"/>
+        /// </summary>
+        public PitchBend Pitch
+        {
+            get { return new PitchBend(_dataByte2, _dataByte1); }
             set
             {
-                ThrowIfArgument.IsOutOfRange(
-                    nameof(value),
-                    value,
-                    MinPitchValue,
-                    MaxPitchValue,
-                    $"Pitch value is out of [{MinPitchValue}; {MaxPitchValue}] range.");
-
-                _dataByte1 = value.GetTail();
-                _dataByte2 = value.GetHead();
+                _dataByte1 = value.Byte1;
+                _dataByte2 = value.Byte2;
             }
         }
 

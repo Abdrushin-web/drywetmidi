@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.Globalization;
 using Melanchall.DryWetMidi.Common;
+using Melanchall.DryWetMidi.Core;
 
 namespace Melanchall.DryWetMidi.MusicTheory
 {
@@ -33,9 +35,11 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// specified note number.
         /// </summary>
         /// <param name="noteNumber">The number of a note (60 is middle C).</param>
-        private Note(SevenBitNumber noteNumber)
+        /// <param name="pitchBend"><see cref="PitchBend"/></param>
+        private Note(SevenBitNumber noteNumber, PitchBend pitchBend)
         {
             NoteNumber = noteNumber;
+            PitchBend = pitchBend;
         }
 
         #endregion
@@ -46,6 +50,10 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// Gets the note number.
         /// </summary>
         public SevenBitNumber NoteNumber { get; }
+        /// <summary>
+        /// <see cref="NoteNumber"/> + <see cref="PitchBend"/>
+        /// </summary>
+        public double RealNoteNumber => NoteNumber + PitchBend;
 
         /// <summary>
         /// Gets the note name.
@@ -56,6 +64,11 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// Gets the octave number of a note.
         /// </summary>
         public int Octave => NoteUtilities.GetNoteOctave(NoteNumber);
+
+        /// <summary>
+        /// Note pitch bend
+        /// </summary>
+        public PitchBend PitchBend { get; }
 
         #endregion
 
@@ -71,21 +84,37 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// <exception cref="ArgumentOutOfRangeException">Result note's number is out of valid range.</exception>
         public Note Transpose(Interval interval)
         {
-            return Get((SevenBitNumber)(NoteNumber + interval.HalfSteps));
+            return Get((SevenBitNumber)(NoteNumber + interval.HalfSteps), PitchBend);
         }
 
         /// <summary>
         /// Returns a <see cref="Note"/> for the specified note number.
         /// </summary>
         /// <param name="noteNumber">The number of a note (60 is middle C).</param>
+        /// <param name="pitchBend"><see cref="PitchBend"/></param>
         /// <returns>A <see cref="Note"/> for the <paramref name="noteNumber"/>.</returns>
-        public static Note Get(SevenBitNumber noteNumber)
+        public static Note Get(SevenBitNumber noteNumber, double pitchBend = 0)
         {
             Note note;
             if (!Cache.TryGetValue(noteNumber, out note))
-                Cache.TryAdd(noteNumber, note = new Note(noteNumber));
-
+                Cache.TryAdd(noteNumber, note = new Note(noteNumber, PitchBend.Zero));
+            if (pitchBend != 0)
+                note = new Note(note.NoteNumber, (PitchBend)pitchBend);
             return note;
+        }
+
+        /// <summary>
+        /// Returns a <see cref="Note"/> for the specified real note number.
+        /// </summary>
+        /// <param name="noteNumber">The real number of a note (60 is middle C).</param>
+        /// <returns>A <see cref="Note"/> for the <paramref name="noteNumber"/>.</returns>
+        public static Note Get(double noteNumber)
+        {
+            Tone.ValidateNoteNumber(noteNumber);
+            var wholeNumber = Math.Floor(noteNumber);
+            var byteNumber = Convert.ToByte(wholeNumber);
+            var pitchBend = noteNumber - wholeNumber;
+            return Get(new SevenBitNumber(byteNumber), pitchBend);
         }
 
         /// <summary>
@@ -93,6 +122,7 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// </summary>
         /// <param name="noteName">The name of a note.</param>
         /// <param name="octave">The octave number.</param>
+        /// <param name="pitchBend"><see cref="PitchBend"/></param>
         /// <returns>A <see cref="Note"/> for the <paramref name="noteName"/> and <paramref name="octave"/>.</returns>
         /// <remarks>
         /// Octave number is specified in scientific pitch notation which means that 4 must be
@@ -102,9 +132,9 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// invalid value.</exception>
         /// <exception cref="ArgumentException">Note number is out of range for the specified note
         /// name and octave.</exception>
-        public static Note Get(NoteName noteName, int octave)
+        public static Note Get(NoteName noteName, int octave, double pitchBend = 0)
         {
-            return Get(NoteUtilities.GetNoteNumber(noteName, octave));
+            return Get(NoteUtilities.GetNoteNumber(noteName, octave), pitchBend);
         }
 
         /// <summary>
@@ -120,7 +150,12 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// <returns><c>true</c> if <paramref name="input"/> was converted successfully; otherwise, <c>false</c>.</returns>
         public static bool TryParse(string input, out Note note)
         {
-            return ParsingUtilities.TryParse(input, NoteParser.TryParse, out note);
+            var pitchBend = PitchBend.TryParse(ref input);
+            if (!ParsingUtilities.TryParse(input, NoteParser.TryParse, out note))
+                return false;
+            if (!pitchBend.IsZero)
+                note = Get(note.NoteNumber, pitchBend);
+            return true;
         }
 
         /// <summary>
@@ -132,7 +167,11 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// <exception cref="FormatException"><paramref name="input"/> has invalid format.</exception>
         public static Note Parse(string input)
         {
-            return ParsingUtilities.Parse<Note>(input, NoteParser.TryParse);
+            var pitchBend = PitchBend.Parse(ref input);
+            var note = ParsingUtilities.Parse<Note>(input, NoteParser.TryParse);
+            if (!pitchBend.IsZero)
+                note = Get(note.NoteNumber, pitchBend);
+            return note;
         }
 
         #endregion
@@ -153,7 +192,8 @@ namespace Melanchall.DryWetMidi.MusicTheory
             if (ReferenceEquals(null, note1) || ReferenceEquals(null, note2))
                 return false;
 
-            return note1.NoteNumber == note2.NoteNumber;
+            return note1.NoteNumber == note2.NoteNumber &&
+                   note1.PitchBend == note2.PitchBend;
         }
 
         /// <summary>
@@ -230,7 +270,7 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// </returns>
         public int CompareTo(Note other)
         {
-            return NoteNumber.CompareTo(other.NoteNumber);
+            return RealNoteNumber.CompareTo(other.RealNoteNumber);
         }
 
         #endregion
@@ -243,7 +283,10 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// <returns>A string that represents the current object.</returns>
         public override string ToString()
         {
-            return $"{NoteName.ToString().Replace(SharpLongString, SharpShortString)}{Octave}";
+            var result = $"{NoteName.ToString().Replace(SharpLongString, SharpShortString)}{Octave}";
+            if (!PitchBend.IsZero)
+                result += PitchBend;
+            return result;
         }
 
         /// <summary>
@@ -262,7 +305,7 @@ namespace Melanchall.DryWetMidi.MusicTheory
         /// <returns>A hash code for the current object.</returns>
         public override int GetHashCode()
         {
-            return NoteNumber.GetHashCode();
+            return NoteNumber.GetHashCode() + 21 + PitchBend.GetHashCode();
         }
 
         #endregion
